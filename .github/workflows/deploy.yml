@@ -1,4 +1,4 @@
-name: CI/CD Direct Deployment
+name: CI-CD-Final-Attempt
 on:
   push:
     branches: [ main ]
@@ -7,10 +7,9 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
+      - name: Configure AWS
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -18,21 +17,8 @@ jobs:
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: us-east-1
 
-      - name: Deploy Lambda Direct
+      - name: Update Only Lambda Code
         run: |
-          # 1. On crée le paquet ZIP de ton code Python
-          zip -j get_products.zip get_products.py
-          
-          # 2. On pousse le code directement sur la fonction existante
-          # On ne crée rien, on met juste à jour la logique
-          aws lambda update-function-code \
-            --function-name get_products_direct \
-            --zip-file fileb://get_products.zip
-
-      - name: Refresh API Gateway
-        run: |
-          # 3. On redéploie le stage prod pour s'assurer que tout est à jour
-          aws apigateway create-deployment \
-            --rest-api-id ei826hfozk \
-            --stage-name prod \
-            --description "Mise à jour automatique via GitHub Actions"
+          zip -j code.zip get_products.py
+          # On tente l'appel le plus basique possible
+          aws lambda update-function-code --function-name get_products_direct --zip-file fileb://code.zip
