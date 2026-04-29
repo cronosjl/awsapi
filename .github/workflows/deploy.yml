@@ -1,24 +1,29 @@
-name: CI-CD-Final-Attempt
-on:
-  push:
-    branches: [ main ]
+image: public.ecr.aws/sam/build-python3.12:latest
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+stages:
+  - build
+  - deploy
 
-      - name: Configure AWS
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-          aws-region: us-east-1
+build_api:
+  stage: build
+  script:
+    - echo "Construction de l'application Serverless..."
+    - sam build
+  artifacts:
+    paths:
+      - .aws-sam/
 
-      - name: Update Only Lambda Code
-        run: |
-          zip -j code.zip get_products.py
-          # On tente l'appel le plus basique possible
-          aws lambda update-function-code --function-name get_products_direct --zip-file fileb://code.zip
+deploy_api:
+  stage: deploy
+  script:
+    - echo "Déploiement sur AWS via LabRole..."
+    - sam deploy 
+        --stack-name mon-api-gitlab-stack 
+        --no-confirm-changeset 
+        --no-fail-on-empty-changeset
+        --capabilities CAPABILITY_IAM 
+        --region us-east-1
+        --role-arn arn:aws:iam::907354788138:role/LabRole 
+        --resolve-s3
+  only:
+    - main
