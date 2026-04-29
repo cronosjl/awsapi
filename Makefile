@@ -1,24 +1,57 @@
-STACK_NAME = MissionStack
+.PHONY: help validate deploy status delete logs
+
+# Configuration
+STACK_NAME = serverless-api-stack
 REGION = us-east-1
-S3_BUCKET = $(shell aws s3 ls | head -n 1 | cut -d' ' -f3)
+TEMPLATE = template.yaml
 
-.PHONY: package deploy
+# Aide
+help:
+	@echo "📋 Commandes disponibles:"
+	@echo ""
+	@echo "  make validate  - Valider le template CloudFormation"
+	@echo "  make deploy    - Déployer l'infrastructure"
+	@echo "  make status    - Vérifier le statut de la stack"
+	@echo "  make logs      - Voir les événements"
+	@echo "  make delete    - Supprimer la stack"
+	@echo ""
 
-# 1. Envoyer les zips sur S3 (Obligatoire pour CloudFormation)
-package:
-	aws s3 cp get_products.zip s3://$(S3_BUCKET)/
-	aws s3 cp manage_users.zip s3://$(S3_BUCKET)/
-	aws s3 cp process_image.zip s3://$(S3_BUCKET)/
+# Valider le template
+validate:
+	@echo "✓ Validating template..."
+	python3 scripts/validate.py $(TEMPLATE)
 
-# 2. Déployer l'infrastructure
-deploy: package
+# Déployer
+deploy: validate
+	@echo "🚀 Deploying stack..."
 	aws cloudformation deploy \
-		--template-file template.json \
+		--template-file $(TEMPLATE) \
 		--stack-name $(STACK_NAME) \
 		--capabilities CAPABILITY_IAM \
-		--parameter-overrides BucketName=$(S3_BUCKET) \
-		--region $(REGION)
+		--region $(REGION) \
+		--no-fail-on-empty-changeset
+	@echo "✅ Deployment complete!"
 
-# 3. Supprimer tout si besoin
-clean:
-	aws cloudformation delete-stack --stack-name $(STACK_NAME)
+# Statut
+status:
+	@aws cloudformation describe-stacks \
+		--stack-name $(STACK_NAME) \
+		--query 'Stacks[0].[StackName,StackStatus,CreationTime]' \
+		--output table \
+		--region $(REGION) 2>/dev/null || echo "Stack not found"
+
+# Logs
+logs:
+	@aws cloudformation describe-stack-events \
+		--stack-name $(STACK_NAME) \
+		--region $(REGION) \
+		--query 'StackEvents[*].[Timestamp,LogicalResourceId,ResourceStatus]' \
+		--output table 2>/dev/null || echo "No events found"
+
+# Supprimer
+delete:
+	@echo "🗑️ Deleting stack..."
+	aws cloudformation delete-stack \
+		--stack-name $(STACK_NAME) \
+		--region $(REGION)
+	@echo "✅ Deletion initiated"

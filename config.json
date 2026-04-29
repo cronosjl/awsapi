@@ -1,0 +1,14 @@
+{
+  "api_id": "5fasblg9fk",
+  "region": "us-east-1",
+  "lambda_arns": {
+    "data-handler": "arn:aws:lambda:us-east-1:699316278791:function:aws-api-project-data-handler",
+    "image-processor": "arn:aws:lambda:us-east-1:699316278791:function:aws-api-project-image-processor",
+    "user-manager": "arn:aws:lambda:us-east-1:699316278791:function:aws-api-project-user-manager"
+  },
+  "endpoints": {
+    "dev": "https://5fasblg9fk.execute-api.us-east-1.amazonaws.com/dev",
+    "test": "https://5fasblg9fk.execute-api.us-east-1.amazonaws.com/test",
+    "prod": "https://5fasblg9fk.execute-api.us-east-1.amazonaws.com/prod"
+  }
+}
