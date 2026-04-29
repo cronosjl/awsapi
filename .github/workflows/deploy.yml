@@ -1,29 +1,101 @@
-image: public.ecr.aws/sam/build-python3.12:latest
+name: Deploy API Gateway & Lambda
 
-stages:
-  - build
-  - deploy
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
-build_api:
-  stage: build
-  script:
-    - echo "Construction de l'application Serverless..."
-    - sam build
-  artifacts:
-    paths:
-      - .aws-sam/
+env:
+  AWS_REGION: us-east-1
+  STACK_NAME_DEV: api-gateway-lambda-dev
+  STACK_NAME_PROD: api-gateway-lambda-prod
 
-deploy_api:
-  stage: deploy
-  script:
-    - echo "Déploiement sur AWS via LabRole..."
-    - sam deploy 
-        --stack-name mon-api-gitlab-stack 
-        --no-confirm-changeset 
-        --no-fail-on-empty-changeset
-        --capabilities CAPABILITY_IAM 
-        --region us-east-1
-        --role-arn arn:aws:iam::907354788138:role/LabRole 
-        --resolve-s3
-  only:
-    - main
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml
+      
+      - name: Validate template
+        run: python3 validate.py deploy.yml
+
+  deploy-dev:
+    needs: validate
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Deploy to Development
+        run: |
+          aws cloudformation deploy \
+            --template-file deploy.yml \
+            --stack-name ${{ env.STACK_NAME_DEV }} \
+            --parameter-overrides StageName=dev \
+            --capabilities CAPABILITY_IAM \
+            --region ${{ env.AWS_REGION }} \
+            --no-fail-on-empty-changeset
+      
+      - name: Get API Endpoint
+        run: |
+          ENDPOINT=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME_DEV }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
+            --output text \
+            --region ${{ env.AWS_REGION }})
+          echo "API_ENDPOINT=$ENDPOINT" >> $GITHUB_ENV
+          echo "✅ Dev API Endpoint: $ENDPOINT"
+
+  deploy-prod:
+    needs: validate
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: production
+      url: ${{ steps.get-endpoint.outputs.endpoint }}
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Deploy to Production
+        run: |
+          aws cloudformation deploy \
+            --template-file deploy.yml \
+            --stack-name ${{ env.STACK_NAME_PROD }} \
+            --parameter-overrides StageName=prod \
+            --capabilities CAPABILITY_IAM \
+            --region ${{ env.AWS_REGION }} \
+            --no-fail-on-empty-changeset
+      
+      - name: Get API Endpoint
+        id: get-endpoint
+        run: |
+          ENDPOINT=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME_PROD }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
+            --output text \
+            --region ${{ env.AWS_REGION }})
+          echo "endpoint=$ENDPOINT" >> $GITHUB_OUTPUT
+          echo "✅ Production API Endpoint: $ENDPOINT"
