@@ -30,4 +30,5 @@ jobs:
             --no-fail-on-empty-changeset \
             --region us-east-1 \
             --capabilities CAPABILITY_IAM \
+            --role-arn arn:aws:iam::907354788138:role/LabRole \
             --resolve-s3
