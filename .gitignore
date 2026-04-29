@@ -1,0 +1,24 @@
+# Environnement virtuel Python
+myenv/
+venv/
+.env/
+__pycache__/
+*.pyc
+*.pyo
+
+# Fichiers AWS sensibles
+config.json
+.aws/
+
+# Fichiers temporaires
+/tmp/
+*.zip
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
