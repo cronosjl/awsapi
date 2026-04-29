@@ -1,0 +1,59 @@
+name: Deploy Lambda + API Gateway
+
+on:
+  push:
+    branches: [ main, dev, test ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Determine stage
+        id: stage
+        run: |
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            echo "stage=prod" >> $GITHUB_OUTPUT
+          else
+            echo "stage=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Package and deploy Lambdas
+        run: |
+          STAGE=${{ steps.stage.outputs.stage }}
+          for FUNC in get_products manage_users process_image; do
+            # On recréé le zip pour être sûr d'avoir la dernière version du code
+            zip -j ${FUNC}.zip ${FUNC}.py
+            
+            # Mise à jour du code de la fonction
+            aws lambda update-function-code \
+              --function-name ${FUNC} \
+              --zip-file fileb://${FUNC}.zip
+            
+            # Attente de la fin de mise à jour
+            aws lambda wait function-updated --function-name ${FUNC}
+            
+            # Publication d'une version et mise à jour de l'alias correspondant au stage
+            VERSION=$(aws lambda publish-version --function-name ${FUNC} --query "Version" --output text)
+            aws lambda update-alias --function-name ${FUNC} --name ${STAGE} --function-version ${VERSION}
+            
+            echo "Lambda $FUNC mise à jour vers v$VERSION sur le stage $STAGE"
+          done
+
+      - name: Deploy API Gateway
+        run: |
+          STAGE=${{ steps.stage.outputs.stage }}
+          aws apigateway create-deployment \
+            --rest-api-id ${{ secrets.API_ID }} \
+            --stage-name ${STAGE} \
+            --description "Déploiement auto depuis GitHub Actions"
