@@ -14,9 +14,13 @@ lambda_client = boto3.client("lambda",     region_name=REGION)
 apigw_client  = boto3.client("apigateway", region_name=REGION)
 
 def get_role_arn():
+   
     account_id = boto3.client("sts").get_caller_identity()["Account"]
-    role_arn   = f"arn:aws:iam::699316278791:role/LambdaExecutionRole"
-    print(f"   Role: {role_arn}")
+    
+   
+    role_arn = f"arn:aws:iam::{account_id}:role/LambdaExecutionRole"
+    
+    print(f"   Role detected for account {account_id}: {role_arn}")
     return role_arn
 
 def zip_lambda(py_file, zip_path):
